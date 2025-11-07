@@ -1,90 +1,128 @@
-# Tech Stack Document
+# Tech Stack Document for DNZwrk Personal CRM
 
-This document explains the key technologies chosen for the **codeguide-starter** project. It’s written in everyday language so anyone—technical or not—can understand why each tool was picked and how it supports the application.
+This document explains, in everyday language, the technology choices behind **DNZwrk**—your local-first, private, and offline-capable personal CRM. It’s broken into clear sections so everyone, technical or not, can understand why each tool was picked and how it fits together.
 
 ## 1. Frontend Technologies
-The frontend is everything the user sees and interacts with. For this project, we’ve used:
 
-- **Next.js (App Router)**
-  - A React framework that makes page routing, server-side rendering, and API routes very simple.
-  - Enhances user experience by pre-rendering pages on the server or at build time, leading to faster initial load.
-- **React 18**
-  - The underlying library for building user interfaces with reusable components.
-  - Provides a smooth, interactive experience thanks to its virtual DOM and modern hooks.
-- **TypeScript**
-  - A superset of JavaScript that adds types (labels for data).
-  - Helps catch errors early during development and makes the code easier to maintain.
-- **CSS (globals.css & theme.css)**
-  - **globals.css** applies base styles (fonts, colors, resets) across the entire app.
-  - **dashboard/theme.css** defines the look and feel specific to the dashboard area.
-  - This separation keeps styles organized and avoids accidental style conflicts.
+The frontend is everything the user sees and interacts with. For DNZwrk, we chose:
 
-By combining these tools, we have a clear structure (Next.js folders for pages and layouts), safer code (TypeScript), and flexible styling with vanilla CSS.
+- **SvelteKit**  
+  A modern framework that turns your code into super-fast JavaScript before the browser ever runs it. This means a snappy interface and instant updates when data changes.
+
+- **Svelte Components**  
+  Small, reusable building blocks (like your "Add Commission" modal or your summary cards) that keep the code organized and make the UI easy to maintain.
+
+- **TypeScript**  
+  A layer on top of JavaScript that catches mistakes early (like typos or mismatched data types) so you avoid bugs in your calculations and forms.
+
+- **Tailwind CSS** (or SCSS)  
+  A styling setup that lets you build a clean, mobile-first design quickly. Tailwind uses simple utility classes (for example, `px-4` for padding) so you can adjust layouts on the fly. If you prefer a traditional stylesheet approach, SCSS is a solid alternative.
+
+- **Progressive Web App (PWA) Features**  
+  - A **`manifest.json`** file to define how the app looks when “installed” on a phone.  
+  - A **service worker** to cache assets (CSS, JavaScript, images) so the app loads instantly and works offline.
+
+### How These Choices Enhance User Experience
+
+- Instant feedback as you add, edit, or delete commissions.  
+- Consistent, mobile-first design that adapts to phone or desktop.  
+- Ability to "Add to Home Screen" and use DNZwrk like a native app.
 
 ## 2. Backend Technologies
-The backend handles data, user accounts, and the logic behind the scenes. Our choices here are:
 
-- **Next.js API Routes**
-  - Allows us to write server-side code (`route.ts` files) alongside our frontend in the same project.
-  - Runs on Node.js, so we can handle requests like sign-up, sign-in, and data fetching in one place.
-- **Node.js Runtime**
-  - The JavaScript environment on the server that executes our API routes.
-- **bcrypt** (npm package)
-  - A library for hashing passwords securely before storing them.
-  - Ensures that even if someone got access to our data, raw passwords aren’t visible.
-- **(Optional) NextAuth.js or JWT**
-  - While this starter kit shows a custom authentication flow, it can easily integrate services like NextAuth.js for email-based login or JWT (JSON Web Tokens) for stateless sessions.
+Even though DNZwrk lives entirely in your browser today, it still needs a data engine and a plan for future online syncing:
 
-These components work together to receive user credentials, verify or store them securely, manage sessions or tokens, and deliver protected data back to the frontend.
+- **Dexie.js on IndexedDB**  
+  A friendly wrapper around the browser’s built-in storage system (IndexedDB). It handles all CRUD operations (Create, Read, Update, Delete) for your commission records, keeps data instant and private, and works offline.
+
+- **Svelte Stores**  
+  Custom, reactive data containers that wrap Dexie.js calls. When the store updates, the UI updates automatically—no manual refresh needed.
+
+- **SvelteKit API Routes**  
+  Placeholder server endpoints (e.g., `src/routes/api/sync/+server.ts`) ready for future synchronization. When you decide to add online features, these routes can receive and send data without rewriting the entire app.
+
+### How These Components Work Together
+
+1. You interact with a form or button in a Svelte component.  
+2. The component calls a method on a Svelte store.  
+3. The store uses Dexie.js to save or fetch data from IndexedDB.  
+4. The store updates its value, and Svelte automatically re-renders the related UI.
 
 ## 3. Infrastructure and Deployment
-Infrastructure covers where and how we host the app, as well as how changes get delivered:
 
-- **Git & GitHub**
-  - Version control system (Git) and remote hosting (GitHub) keep track of all code changes and allow team collaboration.
-- **Vercel (or Netlify)**
-  - A popular hosting service optimized for Next.js, with one-click deployments and global content delivery.
-  - Automatically rebuilds and deploys the site whenever code is pushed to the main branch.
-- **GitHub Actions (CI/CD)**
-  - Automates tasks like linting (ESLint), formatting (Prettier), and running any tests you add.
-  - Ensures that only clean, tested code goes live.
+Behind the scenes, we need a safe and repeatable way to track code changes and publish updates:
 
-Together, these tools provide a reliable, scalable setup where every code change is tested and deployed quickly, with minimal manual work.
+- **Version Control with Git & GitHub**  
+  Every change is recorded, so you can review history, revert mistakes, or collaborate with others.
+
+- **CI/CD with GitHub Actions**  
+  Automated workflows that run tests, build the app, and deploy it whenever you push new code—so you never have to deploy by hand.
+
+- **Hosting Platform (e.g., Vercel or Netlify)**  
+  One-click deployment of your SvelteKit app, complete with PWA support. Handles SSL (HTTPS), global distribution, and scaling automatically.
+
+- **SvelteKit Adapters**  
+  Small plugins that tell SvelteKit how to package your app for your hosting choice (static files for Netlify, serverless functions for Vercel, etc.).
+
+### Benefits of These Choices
+
+- **Reliability:** Your app is redeployed the same way every time.  
+- **Scalability:** Hosting platforms automatically handle more users without extra setup.  
+- **Speed:** Automated builds and global content delivery ensure the app loads fast for everyone.
 
 ## 4. Third-Party Integrations
-While this starter kit is minimal by design, it already includes or can easily add:
 
-- **bcrypt**
-  - For secure password hashing (included as an npm dependency).
-- **NextAuth.js** (optional)
-  - A full-featured authentication library supporting email/password, OAuth, and more.
-- **Sentry or LogRocket** (optional)
-  - For real-time error tracking and performance monitoring in production.
+To round out the user experience, DNZwrk includes lightweight utilities that slot in without heavy dependencies:
 
-These integrations help extend the app’s capabilities without building every feature from scratch.
+- **html2canvas**  
+  Captures on-screen dashboards or lists and turns them into downloadable PNG images.
+
+- **WhatsApp Deep-Link**  
+  Generates a `whatsapp://send?text=...` URL so users can instantly share summaries with clients.
+
+- **JSON Export (built-in)**  
+  Uses `JSON.stringify` to bundle all commissions into a file you can download or store elsewhere.
+
+- **Zod (optional)**  
+  A validation library that formalizes your data rules (for example: "amount must be a number above zero"). It can be added to strengthen form checks and keep your data clean.
+
+### Why These Matter
+
+- **Flexible Sharing:** Multiple export options mean users are in control of their data.  
+- **No Heavy Dependencies:** Each tool does one job well without bloating the app.
 
 ## 5. Security and Performance Considerations
-We’ve baked in several measures to keep users safe and the app running smoothly:
 
-Security:
-- Passwords are never stored in plain text—bcrypt hashes them with a random salt.
-- API routes can implement CSRF protection and input validation to block malicious requests.
-- Session tokens or cookies are marked secure and HttpOnly to prevent theft via JavaScript.
+Although the data never leaves your device, we still follow best practices:
 
-Performance:
-- Server-side rendering (SSR) and static site generation (SSG) in Next.js deliver pages faster.
-- Code splitting and lazy-loaded components ensure users only download what they need.
-- Global CSS and theme files are small and cached by the browser for quick repeat visits.
+- **Client-Side Validation**  
+  Ensure every form entry meets your rules before saving. Prevents bad data from ever entering the database.
 
-These strategies work together to give users a fast, secure experience every time.
+- **Error Handling**  
+  Wrap all database operations in `try...catch` blocks to surface user-friendly messages (e.g., "Storage full, please delete old entries").
+
+- **Asset Caching Strategy**  
+  The service worker caches only the core app shell by default. This keeps install size small and updates reliable.
+
+- **Reactive Updates**  
+  By using Svelte’s compile-time reactivity and derived stores for summary calculations, the app avoids unnecessary computations and only updates what’s needed.
 
 ## 6. Conclusion and Overall Tech Stack Summary
-In building **codeguide-starter**, we chose technologies that:
 
-- Align with modern web standards (Next.js, React, TypeScript).
-- Provide a clear, file-based project structure for rapid onboarding.
-- Offer built-in support for server-side rendering, API routes, and static assets.
-- Emphasize security through password hashing, session management, and safe defaults.
-- Enable easy scaling and future enhancements via modular code and optional integrations.
+**Recap of Choices:**
 
-This stack strikes a balance between simplicity for newcomers and flexibility for experienced teams. It accelerates development of a secure authentication flow and a polished dashboard, while leaving room to plug in databases, test suites, and advanced features as the project grows.
+- Frontend: SvelteKit + Svelte + TypeScript + Tailwind CSS + PWA files  
+- Backend (local): Dexie.js + IndexedDB + Svelte Stores  
+- Future Backend: SvelteKit API Routes ready for sync  
+- Infrastructure: GitHub (version control + CI/CD) + Vercel/Netlify hosting  
+- Integrations: html2canvas, WhatsApp deep-link, JSON export, optional Zod  
+- Security & Performance: form validation, error handling, service worker caching, reactive updates
+
+**Why This Stack Works for DNZwrk:**
+
+- **Privacy & Speed:** All data lives on your device, so everything is instant and secure.  
+- **Offline Comfort:** Full CRUD support without an internet connection.  
+- **Future-Proof:** Ready to grow into an online-synced CRM without tearing down your local-first foundation.  
+- **User-Focused:** A clean, mobile-first design with PWA features makes DNZwrk feel like a native app.
+
+With this stack, DNZwrk stands out as a personal CRM that is fast, private, offline-capable, and easy to extend. Your users get a smooth experience today—and a clear path to more advanced sync features tomorrow.
