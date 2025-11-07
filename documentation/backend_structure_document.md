@@ -1,179 +1,167 @@
-# Backend Structure Document
+# DNZwrk Backend Structure Document
 
-This document outlines the backend architecture, hosting, and infrastructure for the **codeguide-starter** project. It uses plain language so anyone can understand how the backend is set up and how it supports the application.
+This document explains how the DNZwrk personal CRM handles data behind the scenes, from its local database in the browser to the future-ready server endpoints. It uses simple language so anyone can understand how the system is built, hosted, and maintained.
 
 ## 1. Backend Architecture
 
-- **Framework and Design Pattern**
-  - We use **Next.js API Routes** to handle all server-side logic. These routes live alongside the frontend code in the same repository, making development and deployment simpler.
-  - The backend follows a **layered pattern**:
-    1. **API Layer**: Receives requests (login, registration, data fetch).  
-    2. **Service Layer**: Contains the core business logic (user validation, password hashing).  
-    3. **Data Access Layer**: Talks to the database via a simple ORM (e.g., Prisma or TypeORM).
+DNZwrk’s backend is designed around two main ideas:
 
-- **Scalability**
-  - Stateless API routes can scale horizontally—new instances can spin up on demand.  
-  - We can add caching or a message queue (e.g., Redis or RabbitMQ) without changing the core code.
+1. **Local-First Data Layer**
+   - The entire database lives in your web browser, thanks to Dexie.js on top of IndexedDB. All reads and writes happen locally, so the app is extremely fast and works offline.
+   - A set of reactive Svelte stores wraps this local database. Stores keep the user interface in sync with the data automatically—any change you make immediately shows up on screen.
 
-- **Maintainability**
-  - Code for each feature is grouped by route (authentication, dashboard).  
-  - A service layer separates complex logic from request handling.
+2. **Future Online Sync (Optional)**
+   - If you choose to add an online component later, DNZwrk is already set up with SvelteKit API routes (in `src/routes/api`).
+   - These server endpoints can receive local changes, push them to a central database, and send updates back to the app when you’re online.
 
-- **Performance**
-  - Lightweight Node.js handlers keep response times low.  
-  - Future use of database connection pooling and Redis for caching repeated queries.
+How this supports our goals:
+
+- **Scalability**: Browser database scales with your device storage. When you add real server endpoints, they can scale automatically using serverless functions.
+- **Maintainability**: All data logic is in one place (the Dexie-based stores), making it easy to debug or extend.
+- **Performance**: Local reads and writes mean near-instant feedback, and the PWA shell caches assets for fast load times.
 
 ## 2. Database Management
 
-- **Database Choice**
-  - We recommend **PostgreSQL** for structured data and reliable transactions.  
-  - In-memory caching can be added later with **Redis** for session tokens or frequently read data.
+At the heart of DNZwrk’s data layer is **Dexie.js**, a user-friendly wrapper over the browser’s native **IndexedDB**. Here’s how it works:
 
-- **Data Storage and Access**
-  - Use an ORM like **Prisma** or **TypeORM** to map JavaScript/TypeScript objects to database tables.
-  - Connection pooling ensures efficient use of database connections under load.
-  - Migrations track schema changes over time, keeping development, staging, and production in sync.
-
-- **Data Practices**
-  - Passwords are never stored in plain text—they are salted and hashed with **bcrypt** before saving.
-  - All outgoing data is typed and validated to prevent malformed records.
+- **Type**: NoSQL-like storage inside the browser.
+- **Data Storage**: All commission records are stored on the device—no external servers or cloud storage involved by default.
+- **Data Structure**: Each record (commission) is an object with fields like title, client, amount, status, and timestamp.
+- **Data Access**:
+  - Dexie provides a promise-based API (`db.commissions.add()`, `db.commissions.toArray()`, etc.)
+  - Svelte stores call these Dexie methods, then broadcast changes so UI components update automatically.
+- **Data Management Practices**:
+  - Wrap all database calls in try/catch to handle errors (disk full, browser limits).
+  - Version your schema (Dexie’s `version(1).stores(...)`) so you can upgrade safely in future releases.
 
 ## 3. Database Schema
 
-### Human-Readable Format
+Below is the human-friendly view of the commission record structure. We also include the exact Dexie setup (which mirrors a simple SQL table layout).
 
-- **Users**
-  - **id**: Unique identifier  
-  - **email**: User’s email address (unique)  
-  - **password_hash**: Securely hashed password  
-  - **created_at**: Account creation timestamp
+Human-Readable Fields:
+- **id** (auto-generated number)
+- **title** (text describing the commission)
+- **client** (text for the client’s name)
+- **amount** (numeric value of the commission)
+- **status** (one of: pending, completed, cancelled)
+- **createdAt** (date and time when the record was created)
 
-- **Sessions**
-  - **id**: Unique session record  
-  - **user_id**: Links to a user  
-  - **token**: Random string for authentication  
-  - **expires_at**: When the token stops working  
-  - **created_at**: When the session was created
+Dexie (IndexedDB) Definition in TypeScript:
+```typescript
+this.version(1).stores({
+  // ++id: auto-increment primary key
+  // title, status, createdAt: indexed for fast searches
+  commissions: '++id, title, status, createdAt'
+});
+```
 
-- **DashboardItems** *(optional for dynamic data)*
-  - **id**: Unique record  
-  - **title**: Item title  
-  - **content**: Item details  
-  - **created_at**: When the item was added
-
-### SQL Schema (PostgreSQL)
+If this were SQL, the equivalent PostgreSQL table might look like:
 ```sql
--- Users table
-CREATE TABLE users (
-  id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Sessions table
-CREATE TABLE sessions (
-  id SERIAL PRIMARY KEY,
-  user_id INT REFERENCES users(id) ON DELETE CASCADE,
-  token VARCHAR(255) UNIQUE NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Dashboard items table
-CREATE TABLE dashboard_items (
+CREATE TABLE commissions (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
-  content TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
+  client TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  status TEXT CHECK (status IN ('pending', 'completed', 'cancelled')) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-```  
+CREATE INDEX idx_commissions_status ON commissions(status);
+CREATE INDEX idx_commissions_created_at ON commissions(created_at);
+```
 
 ## 4. API Design and Endpoints
 
-- **Approach**: We follow a **RESTful** style, grouping related endpoints under `/api` directories.
+Currently, DNZwrk operates fully offline with no remote API calls. However, the structure is in place to add server endpoints when you’re ready for online sync. The design follows SvelteKit’s file-based routing for RESTful API routes.
 
-- **Key Endpoints**
-  - `POST /api/auth/register`  
-    • Accepts `{ email, password }`  
-    • Creates a new user and issues a session token  
-  - `POST /api/auth/login`  
-    • Accepts `{ email, password }`  
-    • Verifies credentials and returns a session token  
-  - `POST /api/auth/logout`  
-    • Invalidates the session token on the server  
-  - `GET /api/dashboard/data`  
-    • Requires a valid session  
-    • Returns user-specific data or dashboard items  
+Key Endpoint (Future):
 
-- **Communication**
-  - Frontend sends JSON requests; backend replies with JSON and appropriate HTTP status codes.  
-  - Protected routes check for a valid session token (in cookies or Authorization header).
+- **POST /api/sync**
+  - Purpose: Receive a batch of local changes (add/update/delete) from the client.
+  - Request Body: A list of commission objects with an operation type.
+  - Response: Status of each operation and any new data from the server.
+
+Additional Endpoints (Possible Additions):
+- **GET /api/commissions**: Fetch all commissions from the server-side store.
+- **POST /api/commissions**: Add a new commission.
+- **PATCH /api/commissions/:id**: Update status or fields of a commission.
+- **DELETE /api/commissions/:id**: Remove a commission.
+
+How It Works:
+- The client collects local changes in Dexie and posts them to `/api/sync` when online.
+- The server applies them to a central database and returns any updates the client doesn’t have.
+- The client merges those updates back into IndexedDB.
 
 ## 5. Hosting Solutions
 
-- **Cloud Provider**:  
-  - **Vercel** (recommended) offers seamless Next.js deployments, auto-scaling, and built-in CDN.  
-  - Alternatively, **Netlify** or any Node.js-capable host will work.
+Even without a remote database, DNZwrk’s code needs a place to live. We recommend a modern cloud platform that supports static sites and serverless functions—examples:
 
-- **Benefits**
-  - **Reliability**: Global servers and failover across regions.  
-  - **Scalability**: Auto-scale serverless functions based on traffic.  
-  - **Cost-Effectiveness**: Pay-per-use model means low cost for small projects.
+- **Vercel** (recommended)
+- **Netlify**
+- **AWS Amplify**
+
+Benefits:
+
+- **Reliability**: Automatic global CDN distribution of your static assets and API functions.
+- **Scalability**: Serverless functions scale to handle sync requests without manual setup.
+- **Cost-Effectiveness**: Free tiers for small projects, pay-as-you-go for growth.
+- **Developer Experience**: Git integration (push-to-deploy), easy environment variables management.
 
 ## 6. Infrastructure Components
 
-- **Load Balancer**
-  - Provided by the hosting platform—distributes API requests across function instances.
+To deliver fast, reliable experiences, DNZwrk uses the following behind the scenes:
 
-- **CDN (Content Delivery Network)**
-  - Vercel’s global edge network caches static assets (CSS, JS, images) for faster page loads.
+- **Content Delivery Network (CDN)**
+  - Caches the PWA shell (HTML, CSS, JS) close to users for instant load times.
+- **Service Worker**
+  - Caches static assets and manages offline availability of the app.
+- **Serverless Functions**
+  - Host the `/api` routes, scaling automatically and charging only on usage.
+- **Browser Caching**
+  - Uses service worker and HTTP cache headers to store images, scripts, and other assets.
 
-- **Caching**
-  - **Redis** (optional) for session storage or caching dashboard queries to reduce database load.
-
-- **Object Storage**
-  - For file uploads or backups, integrate with AWS S3 or similar services.
-
-- **Message Queue**
-  - In future, use **RabbitMQ** or **Kafka** for background tasks (e.g., email notifications).
+These components work together to:
+- Ensure the app loads quickly anywhere in the world.
+- Keep it running offline or on unreliable networks.
+- Handle spikes in usage without downtime.
 
 ## 7. Security Measures
 
+Even though DNZwrk keeps data private in the browser by default, any future online sync needs safeguards:
+
+- **HTTPS Everywhere**: All assets and API calls must go over secure HTTPS.
 - **Authentication & Authorization**
-  - Passwords hashed with **bcrypt** and salted.  
-  - Session tokens stored in secure, HttpOnly cookies or Authorization headers.  
-  - Protected endpoints verify tokens before proceeding.
-
+  - Secure endpoints with API keys or JSON Web Tokens (JWT) so only authorized clients can sync.
 - **Data Encryption**
-  - **HTTPS/TLS** encrypts data in transit.  
-  - Database connections use SSL to encrypt data between the app and the database.
-
+  - SSL/TLS in transit for all API traffic.
+  - (Optional) Encrypt sensitive fields at rest on the server.
 - **Input Validation**
-  - Every incoming request is validated (e.g., valid email format, password length) to prevent SQL injection or other attacks.
-
-- **Web Security Best Practices**
-  - Enable **CORS** policies to limit allowed origins.  
-  - Use **CSRF tokens** or same-site cookies to prevent cross-site requests.  
-  - Set secure headers with **Helmet** or a similar middleware.
+  - Sanitize and validate all incoming data in serverless functions to prevent malformed or malicious content.
+- **CORS Policy**
+  - Restrict which domains can call the API, preventing unwanted third-party access.
 
 ## 8. Monitoring and Maintenance
 
+To keep DNZwrk running smoothly, set up:
+
+- **Error Tracking**
+  - Tools like Sentry or LogRocket to capture and alert on runtime errors in both service worker and serverless functions.
 - **Performance Monitoring**
-  - Integrate **Sentry** or **LogRocket** for real-time crash reporting and performance tracing.  
-  - Use Vercel’s built-in analytics to track request latencies and error rates.
-
-- **Logging**
-  - Structured logs (JSON) for all API requests and errors, shipped to a log management service like **Datadog** or **Logflare**.
-
-- **Health Checks**
-  - Define a `/health` endpoint that returns a 200 status if the service is up and the database is reachable.
-
-- **Maintenance Strategies**
-  - Automated migrations run on deploy to keep the database schema up to date.  
-  - Scheduled dependency audits and security scans (e.g., `npm audit`).
-  - Regular backups of the database (daily or weekly depending on usage).
+  - Vercel Analytics or Google Lighthouse to track load times, cache hit rates, and PWA performance scores.
+- **Automated Testing & CI/CD**
+  - GitHub Actions or similar to run unit tests (for your data stores and validation logic) on every push.
+- **Dependency Updates**
+  - Dependabot or Renovate to keep Dexie, SvelteKit, and other libraries up-to-date.
+- **Backup Strategy**
+  - (If using a remote database) Schedule daily exports of your server database to guard against data loss.
 
 ## 9. Conclusion and Overall Backend Summary
 
-The backend for **codeguide-starter** is built on Next.js API Routes and Node.js, paired with PostgreSQL for data and optional Redis for caching. It follows a clear layered architecture that keeps code easy to maintain and extend. With RESTful endpoints for authentication and data, secure practices like password hashing and HTTPS, and hosting on Vercel for scalability and global performance, this setup meets the project’s goals for a fast, secure, and developer-friendly foundation. Future enhancements—such as background job queues, advanced monitoring, or richer data models—can be added without disrupting the core structure.
+DNZwrk’s backend is intentionally simple today yet built for tomorrow:
+
+- **Local-First**: Dexie.js in the browser provides fast, private, offline-capable storage with automatic UI updates via Svelte stores.
+- **Ready for Sync**: SvelteKit API routes stand by to become real server endpoints without any major rework.
+- **Modern Hosting**: A cloud platform like Vercel offers CDN delivery, serverless scaling, and developer-friendly deployments.
+- **Solid Infrastructure**: Service workers, CDNs, and serverless functions work in harmony to give users a snappy, reliable PWA.
+- **Security and Monitoring**: Built-in HTTPS, future-friendly auth, and observable operations ensure your data remains safe and your app stays healthy.
+
+With this structure, DNZwrk meets its core goals—local speed, total privacy, and an upgrade path to an online CRM service when you decide to grow. Feel confident that the backend is robust, clear, and ready to scale with your needs.

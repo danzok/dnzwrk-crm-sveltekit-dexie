@@ -1,0 +1,13 @@
+<!-- This is a placeholder. In a real implementation, you would create actual PNG icon files -->
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="192" height="192" rx="32" fill="url(#gradient)"/>
+<path d="M96 48L120 72L96 96L72 72L96 48Z" fill="white"/>
+<path d="M72 96L96 120L72 144L48 120L72 96Z" fill="white" opacity="0.8"/>
+<path d="M120 96L144 120L120 144L96 120L120 96Z" fill="white" opacity="0.8"/>
+<defs>
+<linearGradient id="gradient" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
+<stop stop-color="#2563eb"/>
+<stop offset="1" stop-color="#1d4ed8"/>
+</linearGradient>
+</defs>
+</svg>
